@@ -20,7 +20,7 @@
 %   plotOne         =   Plot one data
 %   plotOne3D       =   Plot the data in 3D view
 %   plotAvg         =   Plot average data
-%   plotResidualR   =   Plot residual data
+%   plotDifference  =   Plot difference of data
 %
 %Long Chang, UH, 3/2/2016
 
