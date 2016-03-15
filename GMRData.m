@@ -24,6 +24,10 @@
 %   plotRBase       =   Plot base resistance with time
 %
 %Long Chang, UH, 3/2/2016
+%
+%   See also loadData, loadDataSet, loadDataSetRep, setFull  
+%   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
+%   plotRBase
 
 classdef GMRData
     
