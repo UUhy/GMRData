@@ -19,8 +19,9 @@
 %   plotAll         =   Plot all data
 %   plotOne         =   Plot one data
 %   plotOne3D       =   Plot the data in 3D view
-%   plotAvg         =   Plot average data
+%   plotCompare     =   Plot all sensors on same figure
 %   plotDifference  =   Plot difference of data
+%   plotRBase       =   Plot base resistance with time
 %
 %Long Chang, UH, 3/2/2016
 
@@ -56,16 +57,16 @@ classdef GMRData
         r;
         
         %Base Resistance
-        %Data:          [N R]
-        %DataSet:       [N S R]
-        %DataSetRep:    [N S R]
+        %Data:          [1 R]
+        %DataSet:       [S R]
+        %DataSetRep:    [S R]
         %   N = data points
         %   R = repeat
         %   S = sensor number
         rbase;
         
         %Field data average
-        %Data:          [N R]
+        %Data:          [N 1]
         %DataSet:       [N S]
         %DataSetRep:    [N S]
         %   N = data points
@@ -73,7 +74,7 @@ classdef GMRData
         fA;
         
         %Resistance data average
-        %Data:          [N R]
+        %Data:          [N 1]
         %DataSet:       [N S]
         %DataSetRep:    [N S]
         %   N = data points
@@ -81,10 +82,9 @@ classdef GMRData
         rA;
         
         %Base resistance average
-        %Data:          [N R]
-        %DataSet:       [N S]
-        %DataSetRep:    [N S]
-        %   N = data points
+        %Data:          [1 1]
+        %DataSet:       [1 S]
+        %DataSetRep:    [1 S]
         %   S = sensor number
         rbaseA;
         
@@ -103,20 +103,21 @@ classdef GMRData
     methods (Access=public, Sealed=true)
         
         function obj = GMRData()
-        %obj = GMRData(filename, full*)
+        %obj = GMRData()
         %
         %   Output:
         %       obj     	:   GMRData instance
         %
         %   Input:
         %       filename    :   string  =   name of file with GMR data
-        %       full*       :   boolean
-        %                       false   =   virgin loop (default)
-        %                       true    =   full loop
         %
         %   Description:
         %   Constructor for GMRData class.  A constructor initializes all
         %   the variables in the class.
+        %
+        %   See also loadData, loadDataSet, loadDataSetRep, setFull  
+        %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
+        %   plotRBase
      
             obj.dataType = 0;
             obj.full = true;
@@ -154,7 +155,10 @@ classdef GMRData
         %
         %   Example:
         %   tmp = GMRData();
-        %   data1 = tmp.loadData('GMR_S1.txt');
+        %   dat = tmp.loadData('GMR_S1.txt');
+        %
+        %   See also loadData, loadDataSet, loadDataSetRep, setFull  
+        %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
             
             obj = obj.setDataType(0);
             dat = load(filename);
@@ -198,7 +202,7 @@ classdef GMRData
         end
         
         function obj = loadDataSet(obj, basename)
-        %obj = loadDataSet(obj, directory)
+        %obj = loadDataSet(obj, basename)
         %
         %   Output:
         %       obj         :   GMRData instance
@@ -209,6 +213,9 @@ classdef GMRData
         %                                   containing GMR data
         %
         %   Description:
+        %   The objective of this function is to load a single set of GMR
+        %   measurements for more than one sensors.
+        %
         %   Load a set of GMR measurement data from the directory.
         %   It is assumed that the name of the file contains a numeric
         %   identifier to distinguish the file.  For example a basename of
@@ -222,23 +229,29 @@ classdef GMRData
         %       subfolder/Blah_5.txt
         %       subfolder/Blah_12.txt
         %
-        %   f is an [N S] matrix
-        %   r is an [N S] matrix
-        %   rbase is an [1 S] matrix
-        %   fA is and [N] matrix
-        %   rA is an [N] matrix
-        %   rbaseA contains a single value
+        %   f is an [N S R] matrix
+        %   r is an [N S R] matrix
+        %   rbase is an [S R] matrix
+        %   fA is and [N S] matrix
+        %   rA is an [N S] matrix
+        %   rbaseA is an [S 1] matrix
         %       N is the number of data points
         %       S is the number of sensors
+        %       R is the number of repeated measurements
         %
         %   Example:
         %   tmp = GMRData();
-        %   data1 = tmp.loadDataSet('Blah_Blah_');  
+        %   dat = tmp.loadDataSet('Blah_Blah_');
+        %
+        %   See also loadData, loadDataSet, loadDataSetRep, setFull  
+        %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
+        %   plotRBase
             
             obj = obj.setDataType(1);
             [filename, sensorNumber] = obj.getDirListing(basename);
             dat = load(filename{1});
-            obj.nData = max(sensorNumber);
+            nRep = size(dat,2)/2-1;
+            obj.nData = [max(sensorNumber) nRep];
             
             if obj.full
                 %Determine the indices of a full loop
@@ -254,43 +267,44 @@ classdef GMRData
                 index = i1(1):i3(1);
                 
                 %Store data
-                obj.f = zeros([length(index) obj.nData]);
-                obj.r = zeros([length(index) obj.nData]);
+                obj.f = zeros([length(index) obj.nData(1) obj.nData(2)]);
+                obj.r = zeros([length(index) obj.nData(1) obj.nData(2)]);
                 
                 for i = 1:length(sensorNumber)
                     dat = load(filename{i});
-                    obj.f(:,sensorNumber(i)) = dat(index,1);
-                    obj.r(:,sensorNumber(i)) = dat(index,2);
+                    obj.f(:,sensorNumber(i),:) = dat(index,3:2:end);
+                    obj.r(:,sensorNumber(i),:) = dat(index,4:2:end);
+                    obj.fA(:,sensorNumber(i)) = dat(index,1);
+                    obj.rA(:,sensorNumber(i)) = dat(index,2);
                 end
-                obj.fA = mean(obj.f,2);
-                obj.rA = mean(obj.r,2);
                 
                 %Calculates base resistance
-                obj.rbase = zeros([1 obj.nData]);
-                obj.rbaseA = 0;
+                obj.rbase = zeros([obj.nData(1) obj.nData(2)]);
+                obj.rbaseA = zeros([1 obj.nData(1)]);
                 obj = obj.calcRBase();
             else
                 %Store data
-                obj.f = zeros([length(dat(:,1)) obj.nData]);
-                obj.r = zeros([length(dat(:,1)) obj.nData]);
+                %Store data
+                obj.f = zeros([length(dat(:,1)) obj.nData(1) obj.nData(2)]);
+                obj.r = zeros([length(dat(:,1)) obj.nData(1) obj.nData(2)]);
                 
                 for i = 1:length(sensorNumber)
                     dat = load(filename{i});
-                    obj.f(:,sensorNumber(i)) = dat(:,1);
-                    obj.r(:,sensorNumber(i)) = dat(:,2);
+                    obj.f(:,sensorNumber(i),:) = dat(:,3:2:end);
+                    obj.r(:,sensorNumber(i),:) = dat(:,4:2:end);
+                    obj.fA(:,sensorNumber(i)) = dat(:,1);
+                    obj.rA(:,sensorNumber(i)) = dat(:,2);
                 end
-                obj.fA = mean(obj.f,2);
-                obj.rA = mean(obj.r,2);
-
-                %Calculates base resistances
-                obj.rbase = zeros([1 obj.nData]);
-                obj.rbaseA = 0;
+                
+                %Calculates base resistance
+                obj.rbase = zeros([obj.nData(1) obj.nData(2)]);
+                obj.rbaseA = zeros([1 obj.nData(1)]);
                 obj = obj.calcRBase();
             end
         end
         
         function obj = loadDataSetRep(obj, basename)
-        %obj = loadDataSetRep(obj, directory)
+        %obj = loadDataSetRep(obj, basename)
         %
         %   Output:
         %       obj         :   GMRData instance
@@ -301,6 +315,11 @@ classdef GMRData
         %                                   containing GMR data
         %
         %   Description:
+        %   The objective of this function is to load a series of sets of
+        %   GMR measurements.  An example is a dataset generated from
+        %   measuring the response of 12 sensors every 15 minutes for 2
+        %   hours.
+        %
         %   Load a set of GMR measurement data from the directory.
         %   It is assumed that the name of the file contains a numeric
         %   identifier to distinguish the file.  For example a basename of
@@ -325,6 +344,10 @@ classdef GMRData
         %   Example:
         %   tmp = GMRData();
         %   data1 = tmp.loadDataSetRep('Blah_Blah_');
+        %
+        %   See also loadData, loadDataSet, loadDataSetRep, setFull  
+        %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
+        %   plotRBase
             
             obj = obj.setDataType(2);
             [filename, sensorNumber, repNumber] = obj.getDirListing(basename);
@@ -383,12 +406,12 @@ classdef GMRData
         %obj = setFull(obj, full)
         %
         %   Output:
-        %       obj         =   GMRData instance
+        %       obj         :   GMRData instance
         %
         %   Input:
-        %       obj         =   GMRData instance
+        %       obj         :   GMRData instance
         %       full        :   boolean
-        %                       false   =   default     = virgin loop
+        %                       false   =   virgin loop
         %                       true    =   full loop
         %
         %   Description:
@@ -399,9 +422,13 @@ classdef GMRData
         %
         %   Example:
         %   tmp = GMRData();
-        %   tmp = tmp.setFull(true)
-        %   data1 = tmp.loadData('GMR_S1.txt');
-        %   data2 = tmp.loadData('GMR_S2.txt');
+        %   tmp = tmp.setFull(false)
+        %   dat1 = tmp.loadData('GMR_S1.txt');
+        %   dat2 = tmp.loadData('GMR_S2.txt');
+        %
+        %   See also loadData, loadDataSet, loadDataSetRep, setFull  
+        %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
+        %   plotRBase
         
             if ~isa(full,'logical')
                 error('GMRData:setFull','The input full must be a boolean.');
@@ -410,16 +437,18 @@ classdef GMRData
             obj.full = full;  
         end
         
-        function obj = plotAll(obj, varargin)
+        function obj = plotAll(obj)
         %obj = plotAll(obj)
         %
         %   Output:
-        %       obj         =   GMRData instance
+        %       obj         :   GMRData instance
         %
         %   Input:
-        %       obj         =   GMRData instance
+        %       obj         :   GMRData instance
         %
         %   Description:
+        %   Plots all the data for review.  The plot generated depends on
+        %   the dataset:
         %   loadData:       Plot average data on top of all data.
         %   loadDataSet:    Plot all average data with different line
         %                   color and type.
@@ -428,9 +457,12 @@ classdef GMRData
         %
         %   Example:
         %   tmp = GMRData();
-        %   tmp = tmp.setFull(true)
         %   data1 = tmp.loadData('GMR_S1.txt');
         %   data1.plotAll();
+        %
+        %   See also loadData, loadDataSet, loadDataSetRep, setFull  
+        %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
+        %   plotRBase
         
             if obj.dataType == 0
                 hold on
@@ -445,15 +477,20 @@ classdef GMRData
                 rSpread = std(obj.rbase)/rMean*100;
                 title(['Rm(' num2str(rMean,3) ')  Spread(' num2str(rSpread,1) '%)']);
             elseif obj.dataType == 1
-                hold on
-                for i = 1:obj.nData
-                	plot(obj.f(:,i),obj.r(:,i)-obj.rbase(i),obj.c{i});
+                for i = 1:obj.nData(1)
+                    subplot(3,4,i)
+                    hold on
+                    for j = 1:obj.nData(2)
+                        plot(obj.f(:,i,j),obj.r(:,i,j)-obj.rbase(i,j),'b');
+                    end
+                    plot(obj.fA(:,i),obj.rA(:,i)-obj.rbaseA(i),'r');
+                    hold off
+                    xlabel('f [Oe]','fontsize',14);
+                    ylabel('R [Ohm]','fontsize',14);
+                    rMean = obj.rbaseA(i);
+                    rSpread = std(obj.rbase(i,:))/rMean*100;
+                    title(['S#' num2str(i) ': Rm(' num2str(rMean,3) ')  Spr(' num2str(rSpread,1) '%)']);
                 end
-                hold off
-                xlabel('f [Oe]','fontsize',14);
-                ylabel('R [Ohm]','fontsize',14);
-                title(['Rm(' num2str(obj.rbaseA,3) ')  Spread(' num2str(std(obj.rbase)/obj.rbaseA*100,1) '%)']);
-                legend('S1','S2','S3','S4','S5','S6','S7','S8','S9','S10','S11','S12','location','ne');
             elseif obj.dataType == 2
                 for i = 1:obj.nData(1)
                     subplot(3,4,i)
@@ -473,28 +510,40 @@ classdef GMRData
         end
         
         function obj = plotOne(obj, varargin)
-        %obj = plotOne(obj, sensorNumber*)
+        %obj = plotOne(obj, sensorNumber*, avgOnly*)
         %
         %   Output:
         %       obj         	:   GMRData instance
         %
         %   Input:
         %       obj         	:   GMRData instance
-        %       sensorNumber*   :   integer     :   sensor number to plot
+        %       sensorNumber*   :   integer     =   sensor number to plot
+        %       avgOnly         :   boolen      =   show average only
+        %                                       =   false (default)
         %
         %   Description:
+        %   Plot one dataset for review.  The plot generated depends on the
+        %   dataset:
         %   loadData:       Plot average data
-        %   loadDataSet:    Plot specified sensor
-        %   loadDataSetRep: Plot specified sensor
+        %   loadDataSet:    Plot specified sensor, all data
+        %   loadDataSetRep: Plot specified sensor, all data
         %
         %   Example:
         %   tmp = GMRData();
-        %   tmp = tmp.setFull(true)
-        %   data1 = tmp.loadData('GMR_S1.txt');
-        %   data1.plotAll();
+        %   dat = tmp.loadData('GMR_S1.txt');
+        %   dat.plotAll();
+        %
+        %   See also loadData, loadDataSet, loadDataSetRep, setFull  
+        %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
+        %   plotRBase
+        
             sensorNumber = 1;
+            avgOnly = false;
             if nargin > 1
                 sensorNumber = varargin{1};
+            end
+            if nargin > 2
+                avgOnly = varargin{2};
             end
         
             if obj.dataType == 0
@@ -504,21 +553,19 @@ classdef GMRData
                 rMean = obj.rbaseA;
                 rSpread = std(obj.rbase)/rMean*100;
                 title(['Rm(' num2str(rMean,3) ')  Spread(' num2str(rSpread,1) '%)']);
-            elseif obj.dataType == 1
-                plot(obj.f(:,sensorNumber),obj.r(:,sensorNumber)-obj.rbase(sensorNumber),'b');
-                xlabel('f [Oe]','fontsize',14);
-                ylabel('R [Ohm]','fontsize',14);
-            elseif obj.dataType == 2
+            elseif any(obj.dataType == [1,2])
                 hold on
-                for j = 1:obj.nData(2)
-                    plot(obj.f(:,sensorNumber,j),obj.r(:,sensorNumber,j)-obj.rbase(sensorNumber,j),'b');
+                if ~avgOnly
+                    for j = 1:obj.nData(2)
+                        plot(obj.f(:,sensorNumber,j),obj.r(:,sensorNumber,j)-obj.rbase(sensorNumber,j),'b');
+                    end
                 end
                 plot(obj.fA(:,sensorNumber),obj.rA(:,sensorNumber)-obj.rbaseA(sensorNumber),'r');
                 hold off
                 xlabel('f [Oe]','fontsize',14);
                 ylabel('R [Ohm]','fontsize',14);
                 rMean = obj.rbaseA(sensorNumber);
-                rSpread = std(obj.rbase(:,sensorNumber))/rMean*100;
+                rSpread = std(obj.rbase(sensorNumber,:))/rMean*100;
                 title(['S#' num2str(sensorNumber) ': Rm(' num2str(rMean,3) ')  Spr(' num2str(rSpread,1) '%)']);
             end
         end
@@ -531,18 +578,22 @@ classdef GMRData
         %
         %   Input:
         %       obj         	:   GMRData instance
-        %       sensorNumber*   :   integer     :   sensor number to plot
+        %       sensorNumber*   :   integer     =   sensor number to plot
         %
         %   Description:
         %   loadData:       Nothing
-        %   loadDataSet:    Nothing
-        %   loadDataSetRep: Plot specified sensor
+        %   loadDataSet:    Plot specified sensor in 3D
+        %   loadDataSetRep: Plot specified sensor in 3D
         %
         %   Example:
         %   tmp = GMRData();
         %   tmp = tmp.setFull(true)
         %   data1 = tmp.loadData('GMR_S1.txt');
         %   data1.plotAll();
+        %
+        %   See also loadData, loadDataSet, loadDataSetRep, setFull  
+        %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
+        %   plotRBase
         
             sensorNumber = 1;
             if nargin > 1
@@ -551,9 +602,7 @@ classdef GMRData
         
             if obj.dataType == 0
                 %Do Nothing
-            elseif obj.dataType == 1
-                %Do Nothing
-            elseif obj.dataType == 2
+            elseif any(obj.dataType == [1, 2])
                 z = ones(size(obj.f(:,1,1)));
                 hold on
                 for i = 1:size(obj.f,3)
@@ -567,66 +616,29 @@ classdef GMRData
             end
         end
         
-        function obj = plotAvg(obj)
-        %obj = plotAvg(obj)
-        %
-        %   Output:
-        %       obj         =   GMRData instance
-        %
-        %   Input:
-        %       obj         =   GMRData instance
-        %
-        %   Description:
-        %   loadData:       Plot average data
-        %   loadDataSet:    Nothing
-        %   loadDataSetRep: Plot data averaged over repeats
-        %
-        %   Example:
-        %   tmp = GMRData();
-        %   tmp = tmp.setFull(true)
-        %   data1 = tmp.loadData('GMR_S1.txt');
-        %   data1.plotAvg();
-        
-            if obj.dataType == 0
-                hold on
-                plot(obj.fA,obj.rA,'r');
-                hold off
-                xlabel('f [Oe]','fontsize',14);
-                ylabel('R [Ohm]','fontsize',14);
-            elseif obj.dataType == 1
-                %Do nothing
-            elseif obj.dataType == 2
-                for i = 1:obj.nData(1)
-                    subplot(3,4,i)
-                    plot(obj.fA(:,i),obj.rA(:,i)-obj.rbaseA(i),'r');
-                    xlabel('f [Oe]','fontsize',14);
-                    ylabel('R [Ohm]','fontsize',14);
-                    rMean = obj.rbaseA(i);
-                    rSpread = std(obj.rbase(i,:))/rMean*100;
-                    title(['S#' num2str(i) ': Rm(' num2str(rMean,3) ')  Spr(' num2str(rSpread,1) '%)']);
-                end
-            end
-        end
-        
         function obj = plotRBase(obj)
         %obj = plotRBase(obj)
         %
         %   Output:
-        %       obj         =   GMRData instance
+        %       obj         :   GMRData instance
         %
         %   Input:
-        %       obj         =   GMRData instance
+        %       obj         :   GMRData instance
         %
         %   Description:
+        %   Plots the base resistance to track it's change over time
         %   loadData:       Plot base resistance of same sensor over time
         %   loadDataSet:    Plot base resistance of all sensors
         %   loadDataSetRep: Plot base resistance of all sensors over time
         %
         %   Example:
         %   tmp = GMRData();
-        %   tmp = tmp.setFull(true)
-        %   data1 = tmp.loadData('GMR_S1.txt');
-        %   data1.plotAll();
+        %   dat = tmp.loadData('GMR_S1.txt');
+        %   dat.plotRBase();
+        %
+        %   See also loadData, loadDataSet, loadDataSetRep, setFull  
+        %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
+        %   plotRBase
         
             if obj.dataType == 0
                 plot(obj.rbase,'b');
@@ -635,14 +647,7 @@ classdef GMRData
                 rMean = obj.rbaseA;
                 rSpread = std(obj.rbase)/rMean*100;
                 title(['Rm(' num2str(rMean,3) ')  Spread(' num2str(rSpread,1) '%)']);
-            elseif obj.dataType == 1
-                plot(obj.rbase,'b');
-                xlabel('Sensor Number','fontsize',14);
-                ylabel('R [Ohm]','fontsize',14);
-                rMean = obj.rbaseA;
-                rSpread = std(obj.rbase)/rMean*100;
-                title(['Rm(' num2str(rMean,3) ')  Spread(' num2str(rSpread,1) '%)']);
-            elseif obj.dataType == 2
+            elseif any(obj.dataType == [1, 2])
                 for i = 1:obj.nData(1)
                     subplot(3,4,i)
                     plot(obj.rbase(i,:),'b');
@@ -665,16 +670,23 @@ classdef GMRData
         %       obj         :   GMRData instance
         %
         %   Description:
+        %   Plots the difference between the average data and individual
+        %   data.  Not sure how useful this is yet, but the idea is to
+        %   quantify changes in the GMR loop.
         %   loadData:       Plot difference of (raw data) - (average data)
-        %   loadDataSet:    Nothing
+        %   loadDataSet:    Plot difference of data - average data for each
+        %                   sensor
         %   loadDataSetRep: Plot difference of data - average data for each
         %                   sensor
         %
         %   Example:
         %   tmp = GMRData();
-        %   tmp = tmp.setFull(true)
-        %   data1 = tmp.loadData('GMR_S1.txt');
-        %   data1.plotDifference();
+        %   dat = tmp.loadData('GMR_S1.txt');
+        %   dat.plotDifference();
+        %
+        %   See also loadData, loadDataSet, loadDataSetRep, setFull  
+        %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
+        %   plotRBase
             
             if obj.dataType == 0
                 resr = zeros([1 obj.nData]);
@@ -684,9 +696,7 @@ classdef GMRData
                 plot(resr,'b');
                 xlabel('Trial [#]','fontsize',14);
                 ylabel('Residual [a.u.]','fontsize',14);
-            elseif obj.dataType == 1
-                %Do nothing
-            elseif obj.dataType == 2
+            elseif any(obj.dataType == [1, 2])
                 resr = zeros([1 obj.nData(2)]);
                 for i = 1:obj.nData(1)
                     subplot(3,4,i)
@@ -702,6 +712,53 @@ classdef GMRData
             end
         end
         
+        function obj = plotCompare(obj)
+        %obj = plotCompare(obj)
+        %
+        %   Output:
+        %       obj         :   GMRData instance
+        %
+        %   Input:
+        %       obj         :   GMRData instance
+        %
+        %   Description:
+        %   Plots all the different sensor data on a single figure for
+        %   comparison.
+        %   loadData:       Plot average data
+        %   loadDataSet:    Plot average data for all sensors
+        %   loadDataSetRep: Plot average data for all sensors
+        %
+        %   Example:
+        %   tmp = GMRData();
+        %   dat = tmp.loadDataSet('GMR_S');
+        %   dat.plotCompare();
+        %
+        %   See also loadData, loadDataSet, loadDataSetRep, setFull  
+        %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
+        %   plotRBase
+        
+            if obj.dataType == 0
+                hold on
+                plot(obj.fA,obj.rA,'r');
+                hold off
+                xlabel('f [Oe]','fontsize',14);
+                ylabel('R [Ohm]','fontsize',14);
+            elseif any(obj.dataType == [1, 2])
+                leg = {};
+                for i = 1:obj.nData(1)
+                    hold on
+                    plot(obj.fA(:,i),obj.rA(:,i)-obj.rbaseA(i),obj.c{i});
+                    leg{end+1} = ['S' num2str(i)];
+                    hold off
+                    xlabel('f [Oe]','fontsize',14);
+                    ylabel('R [Ohm]','fontsize',14);
+                    rMean = obj.rbaseA(i);
+                    rSpread = std(obj.rbase(i,:))/rMean*100;
+                    title(['S#' num2str(i) ': Rm(' num2str(rMean,3) ')  Spr(' num2str(rSpread,1) '%)']);
+                    legend(leg,'location','ne')
+                end
+            end
+        end
     end
     
     methods (Access=protected, Sealed=true)
@@ -743,12 +800,12 @@ classdef GMRData
         %   Determine the base resistance.  The base resistance is the
         %   lowest resistance in the measurement.
             
-            if any(obj.dataType == [0, 1])
+            if obj.dataType == 0
                 for i = 1:obj.nData
                     obj.rbase(i) = min(smooth(obj.r(:,i)));
                 end
                 obj.rbaseA = min(obj.rA);
-            elseif obj.dataType == 2
+            elseif any(obj.dataType == [1, 2])
                 for i = 1:obj.nData(1)
                     for j = 1:obj.nData(2)
                         obj.rbase(i,j) = min(smooth(obj.r(:,i,j)));
