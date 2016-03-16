@@ -347,7 +347,7 @@ classdef GMRData
         %
         %   Example:
         %   tmp = GMRData();
-        %   data1 = tmp.loadDataSetRep('Blah_Blah_');
+        %   dat = tmp.loadDataSetRep('Blah_Blah_');
         %
         %   See also loadData, loadDataSet, loadDataSetRep, setFull  
         %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
@@ -461,8 +461,8 @@ classdef GMRData
         %
         %   Example:
         %   tmp = GMRData();
-        %   data1 = tmp.loadData('GMR_S1.txt');
-        %   data1.plotAll();
+        %   dat = tmp.loadData('GMR_S1.txt');
+        %   dat.plotAll();
         %
         %   See also loadData, loadDataSet, loadDataSetRep, setFull  
         %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
@@ -534,8 +534,11 @@ classdef GMRData
         %
         %   Example:
         %   tmp = GMRData();
-        %   dat = tmp.loadData('GMR_S1.txt');
+        %   dat = tmp.loadDataSet('GMR_S');
+        %   figure;
         %   dat.plotAll();
+        %   figure;
+        %   dat.plotOne(3, false);
         %
         %   See also loadData, loadDataSet, loadDataSetRep, setFull  
         %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
@@ -591,9 +594,11 @@ classdef GMRData
         %
         %   Example:
         %   tmp = GMRData();
-        %   tmp = tmp.setFull(true)
-        %   data1 = tmp.loadData('GMR_S1.txt');
-        %   data1.plotAll();
+        %   dat = tmp.loadDataSetRep('GMR_');
+        %   figure;
+        %   dat.plotAll();
+        %   figure;
+        %   dat.plotOne3D(2);
         %
         %   See also loadData, loadDataSet, loadDataSetRep, setFull  
         %   plotAll, plotOne, plotOne3D, plotCompare, plotDifference
